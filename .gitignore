@@ -1,0 +1,19 @@
+```gitignore
+# Secrets
+.env
+
+# Build output
+target/
+dist/
+node_modules/
+
+# Karate standalone jar (downloaded by Jenkins)
+karate-*.jar
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+*.log

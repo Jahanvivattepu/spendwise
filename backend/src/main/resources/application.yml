@@ -1,0 +1,28 @@
+```yaml
+server:
+  port: 8080
+
+spring:
+  application:
+    name: spendwise
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB:spendwise}
+    username: ${POSTGRES_USER:spendwise}
+    password: ${POSTGRES_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Deliberate demo simplification: Hibernate creates/updates the schema.
+      ddl-auto: update
+  autoconfigure:
+    # We authenticate with JWT only; avoid the auto-generated default user/password.
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+jwt:
+  secret: ${JWT_SECRET:}
+  expiry-minutes: 120
+
+llm:
+  api-url: ${LLM_API_URL:}
+  model: ${LLM_MODEL:}
+  api-key: ${LLM_API_KEY:}
