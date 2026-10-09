@@ -1,4 +1,3 @@
-```dockerfile
 # Stage 1: build the jar (tests already ran in the Jenkins "Backend Tests" stage)
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app

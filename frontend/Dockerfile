@@ -1,4 +1,3 @@
-```dockerfile
 # Stage 1: build the React app (a compile error fails the image build)
 FROM node:20-alpine AS build
 WORKDIR /app
