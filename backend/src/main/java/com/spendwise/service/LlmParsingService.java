@@ -27,7 +27,8 @@ public class LlmParsingService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public record ParsedExpense(String title, BigDecimal amount, LocalDate date) {}
+    public record ParsedExpense(String title, BigDecimal amount, LocalDate date, String category) {}
+    public record AffordabilityVerdict(boolean affordable, String recommendation) {}
 
     public ParsedExpense parseNaturalLanguageExpense(String text) {
         if (apiKey == null || apiKey.isBlank()) {
@@ -40,12 +41,13 @@ public class LlmParsingService {
             headers.setBearerAuth(apiKey);
 
             String prompt = String.format("""
-                Extract the expense item title, amount (number only), and date from this statement.
+                Extract expense details from this statement.
                 Today's date is %s.
+                Choose category strictly from: ['Food & Dining', 'Travel & Transit', 'Entertainment', 'Utilities', 'Academics & Tech', 'Miscellaneous'].
                 Statement: "%s"
 
-                Respond ONLY with a JSON object in this exact format:
-                {"title": "short item name", "amount": 123.45, "date": "YYYY-MM-DD"}
+                Respond ONLY with JSON:
+                {"title": "short item name", "amount": 123.45, "date": "YYYY-MM-DD", "category": "Food & Dining"}
                 """, LocalDate.now(), text);
 
             Map<String, Object> message = Map.of("role", "user", "content", prompt);
@@ -70,14 +72,31 @@ public class LlmParsingService {
                 String title = parsedJson.path("title").asText("Quick Expense");
                 BigDecimal amount = new BigDecimal(parsedJson.path("amount").asText("0"));
                 String dateStr = parsedJson.path("date").asText(LocalDate.now().toString());
+                String category = parsedJson.path("category").asText(inferCategoryFromTitle(title));
 
-                return new ParsedExpense(title, amount, LocalDate.parse(dateStr));
+                return new ParsedExpense(title, amount, LocalDate.parse(dateStr), category);
             }
         } catch (Exception e) {
-            System.err.println("LLM call failed, using rule-based parser: " + e.getMessage());
+            System.err.println("LLM call failed, using rule engine: " + e.getMessage());
         }
 
         return fallbackParse(text);
+    }
+
+    public String inferCategoryFromTitle(String title) {
+        String lower = title.toLowerCase();
+        if (lower.matches(".*(swiggy|zomato|canteen|food|coffee|chai|tea|dinner|lunch|breakfast|pizza|burger|snack).*")) {
+            return "Food & Dining";
+        } else if (lower.matches(".*(metro|uber|ola|auto|cab|bus|petrol|fuel|ticket|train|transit).*")) {
+            return "Travel & Transit";
+        } else if (lower.matches(".*(movie|netflix|cinema|game|spotify|concert|show).*")) {
+            return "Entertainment";
+        } else if (lower.matches(".*(aws|wifi|recharge|electricity|bill|rent|water).*")) {
+            return "Utilities";
+        } else if (lower.matches(".*(book|course|udemy|college|exam|fee|laptop|keyboard|mouse|monitor).*")) {
+            return "Academics & Tech";
+        }
+        return "Miscellaneous";
     }
 
     private ParsedExpense fallbackParse(String text) {
@@ -91,9 +110,10 @@ public class LlmParsingService {
         }
 
         if (cleanTitle.isBlank()) cleanTitle = "Quick Expense";
-        return new ParsedExpense(cleanTitle, extractedAmount, LocalDate.now());
+        String category = inferCategoryFromTitle(cleanTitle);
+
+        return new ParsedExpense(cleanTitle, extractedAmount, LocalDate.now(), category);
     }
-public record AffordabilityVerdict(boolean affordable, String recommendation) {}
 
     public AffordabilityVerdict evaluateAffordability(
             BigDecimal budget,

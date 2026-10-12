@@ -1,21 +1,43 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+
+const CATEGORY_COLORS = {
+  'Food & Dining': '#f97316',
+  'Travel & Transit': '#3b82f6',
+  'Entertainment': '#ec4899',
+  'Utilities': '#10b981',
+  'Academics & Tech': '#8b5cf6',
+  'Miscellaneous': '#64748b'
+};
+
+const CATEGORIES = [
+  'Food & Dining',
+  'Travel & Transit',
+  'Entertainment',
+  'Utilities',
+  'Academics & Tech',
+  'Miscellaneous'
+];
 
 export default function App() {
   const [monthlyBudget, setMonthlyBudget] = useState(25000);
   const [expenses, setExpenses] = useState([]);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
+  const [category, setCategory] = useState('Food & Dining');
   const [quickPrompt, setQuickPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isParsing, setIsParsing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedFilterCategory, setSelectedFilterCategory] = useState('ALL');
 
-  // Feature 2: Advisor Modal State
+  // Affordability Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [checkItem, setCheckItem] = useState('');
   const [checkCost, setCheckCost] = useState('');
   const [isChecking, setIsChecking] = useState(false);
   const [verdict, setVerdict] = useState(null);
+
+  const fileInputRef = useRef(null);
 
   const fetchExpenses = async () => {
     try {
@@ -47,6 +69,7 @@ export default function App() {
         body: JSON.stringify({
           title: title.trim(),
           amount: parseFloat(amount),
+          category: category,
           date: new Date().toISOString().split('T')[0]
         })
       });
@@ -125,6 +148,40 @@ export default function App() {
     setExpenses((prev) => prev.filter((item) => item.id !== id));
   };
 
+  // Feature 2: CSV Export
+  const handleExportCsv = () => {
+    window.location.href = '/api/expenses/export';
+  };
+
+  // Feature 2: CSV Import
+  const handleImportCsv = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/expenses/import', {
+        method: 'POST',
+        body: formData
+      });
+      if (res.ok) {
+        const result = await res.json();
+        await fetchExpenses();
+        alert(`Imported ${result.imported || 0} transactions!`);
+      } else {
+        alert('Failed to import CSV file.');
+      }
+    } catch (err) {
+      console.error('CSV import error:', err);
+      alert('Error uploading statement file.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  // Velocity Stats & Category Distributions
   const stats = useMemo(() => {
     const today = new Date();
     const currentDay = today.getDate();
@@ -147,6 +204,13 @@ export default function App() {
 
     const percentageUsed = Math.min(100, Math.round((totalSpent / monthlyBudget) * 100));
 
+    const categoryTotals = {};
+    CATEGORIES.forEach((cat) => (categoryTotals[cat] = 0));
+    expenses.forEach((item) => {
+      const cat = item.category || 'Miscellaneous';
+      categoryTotals[cat] = (categoryTotals[cat] || 0) + Number(item.amount);
+    });
+
     return {
       totalSpent,
       dailyBurnRate,
@@ -157,9 +221,15 @@ export default function App() {
       daysInMonth,
       daysRemaining,
       badge,
-      percentageUsed
+      percentageUsed,
+      categoryTotals
     };
   }, [expenses, monthlyBudget]);
+
+  const filteredExpenses = useMemo(() => {
+    if (selectedFilterCategory === 'ALL') return expenses;
+    return expenses.filter((e) => (e.category || 'Miscellaneous') === selectedFilterCategory);
+  }, [expenses, selectedFilterCategory]);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f1f5f9', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', color: '#0f172a' }}>
@@ -176,7 +246,46 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            onClick={handleExportCsv}
+            style={{
+              backgroundColor: '#334155',
+              color: '#f8fafc',
+              border: 'none',
+              padding: '0.5rem 0.85rem',
+              borderRadius: '8px',
+              fontWeight: 600,
+              fontSize: '0.8rem',
+              cursor: 'pointer'
+            }}
+          >
+            📥 Export CSV
+          </button>
+
+          <input
+            type="file"
+            accept=".csv"
+            ref={fileInputRef}
+            onChange={handleImportCsv}
+            style={{ display: 'none' }}
+          />
+          <button
+            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+            style={{
+              backgroundColor: '#334155',
+              color: '#f8fafc',
+              border: 'none',
+              padding: '0.5rem 0.85rem',
+              borderRadius: '8px',
+              fontWeight: 600,
+              fontSize: '0.8rem',
+              cursor: 'pointer'
+            }}
+          >
+            📤 Import CSV
+          </button>
+
           <button
             onClick={() => { setIsModalOpen(true); setVerdict(null); }}
             style={{
@@ -184,32 +293,30 @@ export default function App() {
               color: '#ffffff',
               border: 'none',
               padding: '0.5rem 1rem',
-              borderRadius: '10px',
+              borderRadius: '8px',
               fontWeight: 700,
-              fontSize: '0.85rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem'
+              fontSize: '0.8rem',
+              cursor: 'pointer'
             }}
           >
             💡 Can I Afford It?
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: '#1e293b', padding: '0.4rem 0.85rem', borderRadius: '10px' }}>
-            <span style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600 }}>Monthly Target:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#1e293b', padding: '0.4rem 0.75rem', borderRadius: '8px' }}>
+            <span style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600 }}>Limit:</span>
             <span style={{ color: '#38bdf8', fontWeight: 700 }}>₹</span>
             <input
               type="number"
               value={monthlyBudget}
               onChange={(e) => setMonthlyBudget(Math.max(1, Number(e.target.value)))}
-              style={{ width: '90px', backgroundColor: 'transparent', border: 'none', color: '#ffffff', fontWeight: 700, outline: 'none' }}
+              style={{ width: '80px', backgroundColor: 'transparent', border: 'none', color: '#ffffff', fontWeight: 700, outline: 'none' }}
             />
           </div>
         </div>
       </nav>
 
       <main style={{ maxWidth: '960px', margin: '2rem auto', padding: '0 1.25rem' }}>
+        
         {/* Metric Velocity Card */}
         <section style={{ backgroundColor: '#ffffff', borderRadius: '20px', padding: '2rem', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)', marginBottom: '1.5rem', border: '1px solid #e2e8f0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
@@ -256,7 +363,70 @@ export default function App() {
           </div>
         </section>
 
-        {/* Feature 1: AI Quick-Add Bar */}
+        {/* Category Breakdown Bar & Filter Chips */}
+        <section style={{ backgroundColor: '#ffffff', borderRadius: '18px', padding: '1.5rem', marginBottom: '1.5rem', border: '1px solid #e2e8f0' }}>
+          <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>
+            Category Distribution
+          </h3>
+
+          <div style={{ width: '100%', height: '16px', borderRadius: '9999px', overflow: 'hidden', display: 'flex', backgroundColor: '#e2e8f0', marginBottom: '1.25rem' }}>
+            {CATEGORIES.map((cat) => {
+              const spent = stats.categoryTotals[cat] || 0;
+              const pct = stats.totalSpent > 0 ? (spent / stats.totalSpent) * 100 : 0;
+              if (pct === 0) return null;
+              return (
+                <div
+                  key={cat}
+                  title={`${cat}: ₹${spent.toLocaleString()} (${Math.round(pct)}%)`}
+                  style={{ width: `${pct}%`, backgroundColor: CATEGORY_COLORS[cat], transition: 'width 0.3s' }}
+                />
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+            <button
+              onClick={() => setSelectedFilterCategory('ALL')}
+              style={{
+                padding: '0.4rem 0.85rem',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                backgroundColor: selectedFilterCategory === 'ALL' ? '#0f172a' : '#f1f5f9',
+                color: selectedFilterCategory === 'ALL' ? '#ffffff' : '#64748b'
+              }}
+            >
+              All (₹{stats.totalSpent.toLocaleString()})
+            </button>
+
+            {CATEGORIES.map((cat) => {
+              const amt = stats.categoryTotals[cat] || 0;
+              const isSelected = selectedFilterCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedFilterCategory(isSelected ? 'ALL' : cat)}
+                  style={{
+                    padding: '0.4rem 0.85rem',
+                    borderRadius: '8px',
+                    border: `1.5px solid ${CATEGORY_COLORS[cat]}`,
+                    fontWeight: 600,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    backgroundColor: isSelected ? CATEGORY_COLORS[cat] : '#ffffff',
+                    color: isSelected ? '#ffffff' : CATEGORY_COLORS[cat]
+                  }}
+                >
+                  {cat}: ₹{amt.toLocaleString()}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* AI Quick-Add Bar */}
         <section style={{
           background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
           borderRadius: '18px',
@@ -270,7 +440,7 @@ export default function App() {
             <span style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '0.02em' }}>AI Natural Language Quick-Add</span>
           </div>
           <p style={{ margin: '0 0 1rem 0', color: '#c7d2fe', fontSize: '0.85rem' }}>
-            Type how you talk (e.g. <em>"Paid 450 for auto rickshaw yesterday"</em> or <em>"Swiggy lunch 320"</em>)
+            Type freely: <em>"Swiggy lunch 320"</em>, <em>"Uber to office 240"</em>, or <em>"AWS bill 1200"</em>
           </p>
 
           <form onSubmit={handleQuickAdd} style={{ display: 'flex', gap: '0.75rem' }}>
@@ -310,7 +480,7 @@ export default function App() {
           </form>
         </section>
 
-        {/* Manual Fallback Add Form */}
+        {/* Manual Add Form */}
         <section style={{ backgroundColor: '#ffffff', borderRadius: '18px', padding: '1.5rem', marginBottom: '1.5rem', border: '1px solid #e2e8f0' }}>
           <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 700, color: '#475569' }}>Manual Entry</h3>
           <form onSubmit={handleAddExpense} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -320,7 +490,7 @@ export default function App() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
-              style={{ flex: '3 1 200px', padding: '0.75rem 1rem', borderRadius: '10px', border: '1.5px solid #cbd5e1', outline: 'none' }}
+              style={{ flex: '3 1 180px', padding: '0.75rem 1rem', borderRadius: '10px', border: '1.5px solid #cbd5e1', outline: 'none' }}
             />
             <input
               type="number"
@@ -328,8 +498,17 @@ export default function App() {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               required
-              style={{ flex: '1.5 1 120px', padding: '0.75rem 1rem', borderRadius: '10px', border: '1.5px solid #cbd5e1', outline: 'none' }}
+              style={{ flex: '1.5 1 110px', padding: '0.75rem 1rem', borderRadius: '10px', border: '1.5px solid #cbd5e1', outline: 'none' }}
             />
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              style={{ flex: '2 1 140px', padding: '0.75rem 1rem', borderRadius: '10px', border: '1.5px solid #cbd5e1', outline: 'none', backgroundColor: '#ffffff' }}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
             <button
               type="submit"
               disabled={isSubmitting}
@@ -343,25 +522,42 @@ export default function App() {
         {/* Transaction History */}
         <section style={{ backgroundColor: '#ffffff', borderRadius: '18px', padding: '1.5rem', border: '1px solid #e2e8f0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>Recent Transactions</h3>
-            <span style={{ fontSize: '0.85rem', color: '#64748b' }}>{expenses.length} Records</span>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>
+              Transaction History {selectedFilterCategory !== 'ALL' && `(${selectedFilterCategory})`}
+            </h3>
+            <span style={{ fontSize: '0.85rem', color: '#64748b' }}>{filteredExpenses.length} Records</span>
           </div>
 
           {isLoading ? (
             <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem 0' }}>Loading records...</div>
-          ) : expenses.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem 0' }}>No transactions recorded yet.</div>
+          ) : filteredExpenses.length === 0 ? (
+            <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem 0' }}>No transactions recorded for this filter.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              {expenses.map((item) => (
+              {filteredExpenses.map((item) => (
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid #f1f5f9' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      🧾
-                    </div>
+                    <div style={{
+                      width: '10px',
+                      height: '38px',
+                      borderRadius: '4px',
+                      backgroundColor: CATEGORY_COLORS[item.category] || '#64748b'
+                    }} />
                     <div>
                       <div style={{ fontWeight: 600, color: '#0f172a' }}>{item.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{item.date}</div>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.2rem' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{item.date}</span>
+                        <span style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          color: CATEGORY_COLORS[item.category] || '#64748b',
+                          backgroundColor: '#f1f5f9',
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '4px'
+                        }}>
+                          {item.category || 'Miscellaneous'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -383,7 +579,7 @@ export default function App() {
         </section>
       </main>
 
-      {/* Feature 2: "Can I Afford It?" Modal */}
+      {/* "Can I Afford It?" Modal */}
       {isModalOpen && (
         <div style={{
           position: 'fixed',

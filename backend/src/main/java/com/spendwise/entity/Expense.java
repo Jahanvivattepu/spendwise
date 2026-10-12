@@ -15,29 +15,57 @@ public class Expense {
     @Column(nullable = false)
     private String title;
 
-    @Column(nullable = false, precision = 12, scale = 2)
+    @Column(nullable = false)
     private BigDecimal amount;
 
     @Column(nullable = false)
     private LocalDate date;
 
+    @Column(nullable = false)
+    private String category = "Miscellaneous";
+
     public Expense() {}
 
-    public Expense(String title, BigDecimal amount, LocalDate date) {
+    public Expense(String title, BigDecimal amount, LocalDate date, String category) {
         this.title = title;
         this.amount = amount;
         this.date = date;
+        this.category = (category == null || category.isBlank()) ? "Miscellaneous" : category;
     }
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
+    public String getTitle() {
+        return title;
+    }
 
-    public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public void setTitle(String title) {
+        this.title = title;
+    }
 
-    public LocalDate getDate() { return date; }
-    public void setDate(LocalDate date) { this.date = date; }
+    public BigDecimal getAmount() {
+        return amount;
+    }
+
+    public void setAmount(BigDecimal amount) {
+        this.amount = amount;
+    }
+
+    public LocalDate getDate() {
+        return date;
+    }
+
+    public void setDate(LocalDate date) {
+        this.date = date;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = (category == null || category.isBlank()) ? "Miscellaneous" : category;
+    }
 }
