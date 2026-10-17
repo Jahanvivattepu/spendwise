@@ -1,5 +1,7 @@
 package com.spendwise.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.spendwise.user.User;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -24,13 +26,19 @@ public class Expense {
     @Column(nullable = false)
     private String category = "Miscellaneous";
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    @JsonIgnore
+    private User user;
+
     public Expense() {}
 
-    public Expense(String title, BigDecimal amount, LocalDate date, String category) {
+    public Expense(String title, BigDecimal amount, LocalDate date, String category, User user) {
         this.title = title;
         this.amount = amount;
         this.date = date;
         this.category = (category == null || category.isBlank()) ? "Miscellaneous" : category;
+        this.user = user;
     }
 
     public Long getId() {
@@ -67,5 +75,13 @@ public class Expense {
 
     public void setCategory(String category) {
         this.category = (category == null || category.isBlank()) ? "Miscellaneous" : category;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
     }
 }
